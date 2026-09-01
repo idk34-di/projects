@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VERSION 2.1</title>
+<title>VERSION 2.2</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap');
 
@@ -103,7 +103,7 @@
   .author-link:hover { color: var(--accent); }
 
   .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: .75rem; }
-  .chip { padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; cursor: pointer; background: transparent; color: var(--text2); transition: all .12s; }
+  .chip { padding: 5px 14px; border-radius: 2px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; cursor: pointer; background: transparent; color: var(--text2); transition: all .12s; }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   .chip.active { background: var(--accent); color: var(--pad-text); border-color: var(--accent); }
 
@@ -155,7 +155,13 @@
       <button class="btn-sm active" data-mode="link" onclick="setComposerMode('link')">LINK</button>
       <button class="btn-sm" data-mode="code" onclick="setComposerMode('code')">CODE</button>
       <button class="btn-sm" data-mode="idea" onclick="setComposerMode('idea')">IDEA ONLY</button>
-      <input class="song-name-input" id="tagInput" placeholder="Tag (e.g. JS, PYTHON, WEBSITE)" maxlength="20" style="min-width:160px;">
+    </div>
+    <div class="songs-row" id="tagSelectRow" style="display:none">
+      <select class="song-name-input" id="tagSelect" style="min-width:160px;"></select>
+    </div>
+    <div class="songs-row" id="autoTagNote" style="display:none">
+      <span class="post-tag" id="autoTagBadge"></span>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--text2);">tag assigned automatically</span>
     </div>
     <div class="songs-row" id="urlRow">
       <input class="song-name-input" id="urlInput" placeholder="https://... (opens in a new tab)">
@@ -298,6 +304,11 @@ let currentTagFilter = 'ALL';
 let currentSearch = '';
 let composerMode = 'link';
 
+// Fixed tag vocabulary: 8 code categories (chosen manually), plus WEBSITE and
+// IDEA which are assigned automatically based on the composer mode.
+const CODE_TAGS = ['HTML','CSS','JAVASCRIPT','PYTHON','JAVA','C++','SQL','HTTPS'];
+const ALL_TAGS = CODE_TAGS.concat(['WEBSITE','IDEA']);
+
 // ---- Monthly-resetting visit counter (same pattern as the other sites) ----
 function monthKey(){
   const d = new Date();
@@ -435,7 +446,6 @@ function renderProfileSetup(){
       }, { merge:true });
       currentProfile = { displayName:name, photoURL };
       document.getElementById('gate').innerHTML = '';
-      document.getElementById('composerSection').style.display = '';
       document.getElementById('tabsBar').style.display = 'flex';
       switchTab('feed');
       showToast('PROFILE SAVED');
@@ -452,7 +462,7 @@ function switchTab(view){
   if(!currentProfile) return;
   currentView = view;
   document.querySelectorAll('#tabsBar .tab').forEach(t=> t.classList.toggle('active', t.dataset.view===view));
-  document.getElementById('composerSection').style.display = view==='feed' ? '' : 'none';
+  document.getElementById('composerSection').style.display = view==='mine' ? '' : 'none';
   document.getElementById('feedControls').style.display = view==='feed' ? '' : 'none';
   document.getElementById('feed').style.display = view==='feed' ? '' : 'none';
   document.getElementById('mineView').style.display = view==='mine' ? '' : 'none';
@@ -572,12 +582,23 @@ async function renderPersonView(uid){
 }
 
 /* ---------- COMPOSER ---------- */
+const tagSelectEl = document.getElementById('tagSelect');
+tagSelectEl.innerHTML = '<option value="">Choose a tag *</option>' +
+  CODE_TAGS.map(t=> `<option value="${t}">${t}</option>`).join('');
+
 function setComposerMode(mode){
   composerMode = mode;
   document.querySelectorAll('#modeToggleRow [data-mode]').forEach(b=> b.classList.toggle('active', b.dataset.mode===mode));
   document.getElementById('urlRow').style.display = mode==='link' ? '' : 'none';
   document.getElementById('codeRow').style.display = mode==='code' ? '' : 'none';
+  document.getElementById('tagSelectRow').style.display = mode==='code' ? '' : 'none';
+  const autoTagNote = document.getElementById('autoTagNote');
+  const autoTagBadge = document.getElementById('autoTagBadge');
+  if(mode==='link'){ autoTagNote.style.display = ''; autoTagBadge.textContent = 'WEBSITE'; }
+  else if(mode==='idea'){ autoTagNote.style.display = ''; autoTagBadge.textContent = 'IDEA'; }
+  else { autoTagNote.style.display = 'none'; }
 }
+setComposerMode('link');
 document.getElementById('pickPhoto').onclick = ()=> document.getElementById('photoInput').click();
 document.getElementById('photoInput').onchange = (e)=> handleMediaPick(e.target.files[0]);
 document.getElementById('publishBtn').onclick = publishPost;
@@ -610,12 +631,23 @@ async function publishPost(){
   if(!currentUser || !currentProfile){ showToast('SIGN IN FIRST', true); return; }
   const title = document.getElementById('titleInput').value.trim();
   const description = document.getElementById('descInput').value.trim();
-  const tag = document.getElementById('tagInput').value.trim().toUpperCase();
   const url = document.getElementById('urlInput').value.trim();
   const code = document.getElementById('codeInput').value;
 
   if(!title){ showToast('ENTER A TITLE', true); return; }
   if(!description){ showToast('ENTER A DESCRIPTION', true); return; }
+
+  let tag;
+  if(composerMode==='code'){
+    tag = document.getElementById('tagSelect').value;
+    if(!tag){ showToast('CHOOSE A TAG', true); return; }
+    if(!code.trim()){ showToast('PASTE SOME CODE', true); return; }
+  } else if(composerMode==='link'){
+    tag = 'WEBSITE';
+    if(!url){ showToast('ENTER A URL', true); return; }
+  } else {
+    tag = 'IDEA';
+  }
 
   const btn = document.getElementById('publishBtn');
   btn.disabled = true; btn.textContent = 'PUBLISHING...';
@@ -626,7 +658,7 @@ async function publishPost(){
       authorPhoto: currentProfile.photoURL,
       title,
       description,
-      tag: tag || null,
+      tag: tag,
       mode: composerMode,
       url: composerMode==='link' && url ? safeUrl(url) : null,
       code: composerMode==='code' && code.trim() ? code : null,
@@ -637,7 +669,7 @@ async function publishPost(){
     pendingMedia = null;
     document.getElementById('titleInput').value = '';
     document.getElementById('descInput').value = '';
-    document.getElementById('tagInput').value = '';
+    document.getElementById('tagSelect').value = '';
     document.getElementById('urlInput').value = '';
     document.getElementById('codeInput').value = '';
     document.getElementById('previewArea').innerHTML = '';
@@ -666,12 +698,9 @@ function startFeed(){
 }
 
 function buildTagChips(){
-  const freq = {};
-  allPosts.forEach(p=>{ if(p.tag){ freq[p.tag] = (freq[p.tag]||0)+1; } });
-  const tags = Object.keys(freq).sort((a,b)=> freq[b]-freq[a] || a.localeCompare(b)).slice(0,12);
   const chipsEl = document.getElementById('tagChips');
   chipsEl.innerHTML = [`<div class="chip${currentTagFilter==='ALL'?' active':''}" data-tag="ALL">ALL</div>`]
-    .concat(tags.map(t=> `<div class="chip${currentTagFilter===t?' active':''}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`))
+    .concat(ALL_TAGS.map(t=> `<div class="chip${currentTagFilter===t?' active':''}" data-tag="${t}">${t}</div>`))
     .join('');
   chipsEl.querySelectorAll('.chip').forEach(c=>{
     c.onclick = ()=>{ currentTagFilter = c.dataset.tag; renderFeed(); };
