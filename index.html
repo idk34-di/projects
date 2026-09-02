@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VERSION 2.2</title>
+<title>VERSION 4.2</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap');
 
@@ -242,6 +242,30 @@ function safeUrl(u){
   if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
   return u;
 }
+
+// Lets an avatar-picker accept a pasted screenshot (Ctrl+V) in addition to the
+// file browser. Only one handler is active at a time; it's a no-op once the
+// picker it targets is no longer on screen.
+let currentPasteHandler = null;
+function setupAvatarPaste(pickerId, onImage){
+  if(currentPasteHandler) document.removeEventListener('paste', currentPasteHandler);
+  currentPasteHandler = (e)=>{
+    const dt = e.clipboardData || window.clipboardData;
+    if(!dt || !dt.items) return;
+    let imageItem = null;
+    for(const item of dt.items){ if(item.type && item.type.startsWith('image/')){ imageItem = item; break; } }
+    if(!imageItem) return;
+    const picker = document.getElementById(pickerId);
+    if(!picker) return;
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    if(!blob) return;
+    picker.innerHTML = `<img class="avatar-lg" src="${URL.createObjectURL(blob)}">`;
+    onImage(blob);
+    showToast('SCREENSHOT PASTED');
+  };
+  document.addEventListener('paste', currentPasteHandler);
+}
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -413,6 +437,7 @@ function renderProfileSetup(){
       </div>
       <div class="avatar-picker" id="avatarPicker"><span>TAP TO<br>CHOOSE PHOTO</span></div>
       <input type="file" id="avatarInput" accept="image/*" style="display:none;">
+      <div style="text-align:center;font-family:var(--font-mono);font-size:9px;color:var(--text2);margin:-.5rem 0 .75rem;">or press CTRL+V to paste a screenshot</div>
       <div class="songs-row">
         <input class="song-name-input" id="nameInput" placeholder="Display name" maxlength="30">
       </div>
@@ -430,6 +455,7 @@ function renderProfileSetup(){
     avatarFile = f;
     avatarPicker.innerHTML = `<img class="avatar-lg" src="${URL.createObjectURL(f)}">`;
   };
+  setupAvatarPaste('avatarPicker', blob => { avatarFile = blob; });
   document.getElementById('saveProfileBtn').onclick = async ()=>{
     const name = document.getElementById('nameInput').value.trim();
     if(!name){ showToast('ENTER A NAME', true); return; }
@@ -497,6 +523,7 @@ function renderEditProfileView(){
       <div class="screen"><div class="screen-top"><span class="screen-label">MY PROFILE</span></div></div>
       <div class="avatar-picker" id="editAvatarPicker"><img class="avatar-lg" src="${currentProfile.photoURL}"></div>
       <input type="file" id="editAvatarInput" accept="image/*" style="display:none;">
+      <div style="text-align:center;font-family:var(--font-mono);font-size:9px;color:var(--text2);margin:-.5rem 0 .75rem;">or press CTRL+V to paste a screenshot</div>
       <div class="songs-row">
         <input class="song-name-input" id="editNameInput" value="${escapeHtml(currentProfile.displayName)}" maxlength="30">
       </div>
@@ -516,6 +543,7 @@ function renderEditProfileView(){
     newAvatarFile = f;
     picker.innerHTML = `<img class="avatar-lg" src="${URL.createObjectURL(f)}">`;
   };
+  setupAvatarPaste('editAvatarPicker', blob => { newAvatarFile = blob; });
   document.getElementById('editSaveBtn').onclick = async ()=>{
     const name = document.getElementById('editNameInput').value.trim();
     if(!name){ showToast('ENTER A NAME', true); return; }
@@ -924,4 +952,4 @@ startFeed();
 </script>
 </body>
 </html>
-© 2026 Ismaele. All rights reserved. Created: 01-09-2026 | Last Update: 01-09-2026
+© 2026 Ismaele. All rights reserved. Created: 01-09-2026 | Last Update: 02-09-2026
